@@ -44,7 +44,6 @@ class HeatMap:
             idx2 = Z2['leaves']
             D = D[idx1, :]
             D = D[:, idx2]
-
         color = plt.cm.jet
         colormap = plt.get_cmap(color)
         axmatrix = fig.add_axes([0.4, 0.2, 0.4, 0.69])
@@ -98,7 +97,7 @@ class HeatMap:
         color = plt.cm.jet
         colormap = plt.get_cmap(color)
         axmatrix = fig.add_axes([0.4, 0.2, 0.4, 0.69])
-        normal = mpl.colors.LogNorm(vmin=D.min(), vmax=D.max(), clip=True)
+        normal = mpl.colors.Normalize(vmin=np.nanmin(D), vmax=np.nanmax(D))
         im = axmatrix.pcolormesh(D, cmap=colormap, norm=normal, clip_on=True)
         if labels:
             if dendro:
@@ -114,23 +113,23 @@ class HeatMap:
         plt.ylim(0, self.matrix.shape[0])
         axcolor = fig.add_axes([.85, 0.2, 0.02, 0.6])
         plt.colorbar(im, cax=axcolor)
-        axcolor.set_title('RPKM')
+        axcolor.set_title('FC')
         return fig
 
-def get_gene_list(title, logchange=2, out=False):
+def fc_gene_list(df0, df, fc_col, _cols, title, logchange=2, out=False):
     _coords = dict(genes=[], save=title, output=out)
     if logchange > 0:
-        for item in df2[df2.O2AsIIIvsO2Cr_log2FoldChange > logchange].index:
+        for item in df[df.ix[:,fc_col] > logchange].index:
             if "Shewana3_R" in item:
                 continue
             _coords['genes'].append(item)
     elif logchange < 0:
-        for item in df2[df2.O2AsIIIvsO2Cr_log2FoldChange < logchange].index:
+        for item in df[df.ix[:,fc_col] < logchange].index:
             if "Shewana3_R" in item:
                 continue
             _coords['genes'].append(item)
     # get the RPKM values of the genes listed in coords['genes']
-    return df1.ix[_coords['genes'], cols], _coords
+    return df0.ix[_coords['genes'], _cols], _coords
 
 
 def heatmap_dendro_RPKM(df, _coords):
@@ -203,12 +202,13 @@ if __name__ == '__main__':
     cols = [0, 1, 2, 9, 10, 11, 18, 19, 20]
 
     # Sorted list of DE genes
-    df2 = pd.DataFrame.from_csv('AsIIIvsO2Cr_deseq_expression_filtered.tsv', sep='\t', index_col='id')
+    df2 = pd.DataFrame.from_csv('O2vsO2Cr_deseq_expression_filtered.tsv', sep='\t', index_col='id')
 
-    dfmap, coords = get_gene_list('Chromate_Repressed', 2.5, False)
+    dfmap, coords = fc_gene_list(df1, df2, 6, cols, 'Chromate_Expression', -3)
 
     print len(coords['genes'])
     # df1.ix[coords['genes'],['product']].to_csv('genes.txt', sep='\t')
+    print(df1.ix[coords['genes'],['product']])
 
     # heatmap_dendro(dfmap, coords)
 
