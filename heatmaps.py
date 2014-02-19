@@ -16,7 +16,7 @@ class HeatMap:
         """
         self.matrix = matrix
 
-    def heatmap_RPKM(self, labels=False, dendro=False):
+    def heatmap_rpkm(self, labels=False, dendro=False):
         fig = plt.figure(figsize=(7, 9))
         D = self.matrix.values
         D = D + 1
@@ -64,9 +64,8 @@ class HeatMap:
         axcolor = fig.add_axes([.85, 0.2, 0.02, 0.6])
         plt.colorbar(im, cax=axcolor)
         axcolor.set_title('RPKM')
-        return fig
 
-    def heatmap_FC(self, labels=False, dendro=False):
+    def heatmap_fc(self, labels=False, dendro=False):
         fig = plt.figure(figsize=(7, 9))
         D = self.matrix.values
         if dendro:
@@ -114,9 +113,19 @@ class HeatMap:
         axcolor = fig.add_axes([.85, 0.2, 0.02, 0.6])
         plt.colorbar(im, cax=axcolor)
         axcolor.set_title('FC')
-        return fig
 
 def fc_gene_list(df0, df, fc_col, _cols, title, logchange=2, out=False):
+    """Gets gene names from a DESeq analysis file based on fold change
+
+    :param df0: Dataframe file of genes and their RPKM values
+    :param df: Dataframe file from DESeq
+    :param fc_col: Column within df that has the fold change
+    :param _cols: Columns that have the RPKM values
+    :param title: File name to be saved
+    :param logchange: from fc_col, DESeq value criteria
+    :param out: Set to True if you want to save the heatmap
+    :return: A new dataframe fo df0 but of only the expressed genes
+    """
     _coords = dict(genes=[], save=title, output=out)
     if logchange > 0:
         for item in df[df.ix[:,fc_col] > logchange].index:
@@ -132,16 +141,18 @@ def fc_gene_list(df0, df, fc_col, _cols, title, logchange=2, out=False):
     return df0.ix[_coords['genes'], _cols], _coords
 
 
-def heatmap_dendro_RPKM(df, _coords):
+def heatmap_dendro_rpkm(df, _coords):
     # need the values only.  This removes the gene names
     D = df.values
+
     # can't have zero values for LogNorm scale
     D = D + 1
 
-    # Compute and plot the side dendrogram.
-
-    # left, bottom, w, h
+    # make a figure instance
     fig = plt.figure(figsize=(7, 9))
+
+    # Compute and plot the side dendrogram.
+    # left, bottom, w, h
     rectangle1 = (0, 0.2, 0.2, 0.69)
     ax1 = fig.add_axes(rectangle1)
     Y = sch.linkage(D, method='centroid')
@@ -213,5 +224,5 @@ if __name__ == '__main__':
     # heatmap_dendro(dfmap, coords)
 
     hm = HeatMap(dfmap)
-    hm.heatmap_RPKM(dendro=True, labels=True)
+    hm.heatmap_rpkm(dendro=True, labels=True)
     plt.show()
