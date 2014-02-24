@@ -6,7 +6,7 @@ import matplotlib as mpl
 import numpy as np
 import scipy.cluster.hierarchy as sch
 
-# <codecell>
+
 class  HeatMap:
     def __init__(self, matrix):
         """ Generates a heat map using RPKM or other expression values
@@ -130,80 +130,22 @@ class  GeneScan:
     def filterrpkm(self, df, genes, rpkm):
         return df.ix[genes, rpkm]
 
-def heatmap_dendro_rpkm(df, _coords):
-    # need the values only.  This removes the gene names
-    D = df.values
-
-    # can't have zero values for LogNorm scale
-    D = D + 1
-
-    # make a figure instance
-    fig = plt.figure(figsize=(7, 9))
-
-    # Compute and plot the side dendrogram.
-    # left, bottom, w, h
-    rectangle1 = (0, 0.2, 0.2, 0.69)
-    ax1 = fig.add_axes(rectangle1)
-    Y = sch.linkage(D, method='centroid')
-    Z1 = sch.dendrogram(Y, orientation='right')
-    ax1.set_xticks([])
-    ax1.set_yticks([])
-
-    # need to transpose the array so you can sort by RPKM
-    Dt = np.transpose(D)
-
-    # Compute and plot the top dendrogram.
-    ax2 = fig.add_axes([0.4, 0.9, 0.4, 0.1])
-    Y = sch.linkage(Dt, method='single')
-    Z2 = sch.dendrogram(Y)
-    ax2.set_xticks([])
-    ax2.set_yticks([])
-
-    # Plot heatmap distance matrix.
-    axmatrix = fig.add_axes([0.4, 0.2, 0.4, 0.69])
-    idx1 = Z1['leaves']
-    idx2 = Z2['leaves']
-    D = D[idx1, :]
-    D = D[:, idx2]
-
-    color = plt.cm.jet
-    cmap = plt.get_cmap(color)
-    #levels = mpl.ticker.LogLocator(base=10, subs=[1], numticks=20).tick_values(1, D.max())
-    #norm = mpl.colors.BoundaryNorm(levels, ncolors=cmap.N, clip=True)
-    norm = mpl.colors.LogNorm(vmin=D.min(), vmax=D.max(), clip=True)
-
-    im = axmatrix.pcolormesh(D, cmap=cmap, norm=norm, clip_on=True)
-
-    # sort label elements
-    xlabels = list(df.columns[i].__str__() for i in idx2)
-    ylabels = list(df.index[i].__str__() for i in idx1)
-    axmatrix.set_xticklabels(xlabels, rotation=90, minor=False)
-    axmatrix.set_xticks(np.arange(xlabels.__len__()) + 0.5, minor=False)
-    axmatrix.set_yticklabels(ylabels, fontsize='small', minor=False)
-    axmatrix.set_yticks(np.arange(ylabels.__len__()) + 0.5, minor=False)
-    plt.ylim(0, df.shape[0])
-
-    # Plot colorbar.
-    axcolor = fig.add_axes([.85, 0.2, 0.02, 0.6])
-    plt.colorbar(im, cax=axcolor)
-    axcolor.set_title('RPKM')
-
-    if _coords['output']:
-        plt.savefig(_coords['title'] + '.png', format='png', dpi=200, bbox_inches='tight')
-    plt.show()
 
 # <codecell>
 if __name__ == '__main__':
 
+# <codecell>
     # The main file with RPKM values
     df1 = pd.read_excel('/Users/saltikov/PycharmProjects/rna_seq/RUN2_data.xlsx', 'sheet1', index_col=0)
 
     # columns with the specific RPKM values
     cols = [0, 1, 2, 9, 10, 11, 18, 19, 20]
 
+# <codecell>
     # Sorted list of DE genes
     df2 = pd.DataFrame.from_csv('AsIIIvsO2Cr_deseq_expression_filtered.tsv', sep='\t', index_col='id')
 
+# <codecell>
     gs = GeneScan()
     genes = gs.getgenes(df2, 'O2AsIIIvsO2Cr_log2FoldChange', 'padj_O2AsIIIvsO2Cr')
     dfmap = gs.filterrpkm(df1, genes, cols)
@@ -212,8 +154,11 @@ if __name__ == '__main__':
     print('The first 20 genes and their products:')
     print(df1.ix[genes,['product']].head(20))
 
-    # heatmap_dendro(dfmap, coords)
-
     hm = HeatMap(dfmap)
     hm.heatmap_rpkm(dendro=True, labels=False)
+
+    coords = dict(title='ChromateVArsenite', output=True)
+    if coords['output']:
+        plt.savefig(coords['title'] + '.png', format='png', dpi=200, bbox_inches='tight')
+
     plt.show()
