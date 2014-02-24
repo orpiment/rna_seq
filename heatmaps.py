@@ -7,7 +7,7 @@ import numpy as np
 import scipy.cluster.hierarchy as sch
 
 # <codecell>
-class HeatMap:
+class  HeatMap:
     def __init__(self, matrix):
         """ Generates a heat map using RPKM or other expression values
 
@@ -51,19 +51,21 @@ class HeatMap:
         im = axmatrix.pcolormesh(D, cmap=colormap, norm=normal, clip_on=True)
         if labels:
             if dendro:
-                xlabels = list(self.matrix.columns[i].__str__() for i in idx2)
                 ylabels = list(self.matrix.index[i].__str__() for i in idx1)
             else:
                 ylabels = list(self.matrix.index)
-                xlabels = list(self.matrix.columns)
-            axmatrix.set_xticklabels(xlabels, rotation=90, minor=False)
-            axmatrix.set_xticks(np.arange(xlabels.__len__()) + 0.5, minor=False)
             axmatrix.set_yticklabels(ylabels, fontsize='small', minor=False)
             axmatrix.set_yticks(np.arange(ylabels.__len__()) + 0.5, minor=False)
+
+        xlabels = list(self.matrix.columns[i].__str__() for i in idx2)
+        axmatrix.set_xticklabels(xlabels, rotation=90, minor=False)
+        axmatrix.set_xticks(np.arange(xlabels.__len__()) + 0.5, minor=False)
+
         plt.ylim(0, self.matrix.shape[0])
         axcolor = fig.add_axes([.85, 0.2, 0.02, 0.6])
-        plt.colorbar(im, cax=axcolor)
-        axcolor.set_title('RPKM')
+        cbar = plt.colorbar(im, cax=axcolor)
+        cbar.set_label('RPKM', fontsize='x-small')
+        cbar.ax.tick_params(labelsize='x-small')
 
     def heatmap_fc(self, labels=False, dendro=False):
         fig = plt.figure(figsize=(7, 9))
@@ -114,32 +116,19 @@ class HeatMap:
         plt.colorbar(im, cax=axcolor)
         axcolor.set_title('FC')
 
-def fc_gene_list(df0, df, fc_col, _cols, title, logchange=2, out=False):
-    """Gets gene names from a DESeq analysis file based on fold change
-
-    :param df0: Dataframe file of genes and their RPKM values
-    :param df: Dataframe file from DESeq
-    :param fc_col: Column within df that has the fold change
-    :param _cols: Columns that have the RPKM values
-    :param title: File name to be saved
-    :param logchange: from fc_col, DESeq value criteria
-    :param out: Set to True if you want to save the heatmap
-    :return: A new dataframe fo df0 but of only the expressed genes
-    """
-    _coords = dict(genes=[], save=title, output=out)
-    if logchange > 0:
-        for item in df[df.ix[:,fc_col] > logchange].index:
-            if "Shewana3_R" in item:
+class  GeneScan:
+    def __init__(self):
+        self._genes = []
+    def filtergenes(self, df, log2fc, pval, fc=1.5):
+        for key, item in df[(df[log2fc] >= fc) | (df[log2fc] <= -fc) & (df[pval] <= 0.05)].iterrows():
+            if "Shewana3_R" in key:
                 continue
-            _coords['genes'].append(item)
-    elif logchange < 0:
-        for item in df[df.ix[:,fc_col] < logchange].index:
-            if "Shewana3_R" in item:
-                continue
-            _coords['genes'].append(item)
-    # get the RPKM values of the genes listed in coords['genes']
-    return df0.ix[_coords['genes'], _cols], _coords
-
+            self._genes.append(key)
+    def getgenes(self, df, log2fc, pval):
+        self.filtergenes(df, log2fc, pval)
+        return self._genes
+    def filterrpkm(self, df, genes, rpkm):
+        return df.ix[genes, rpkm]
 
 def heatmap_dendro_rpkm(df, _coords):
     # need the values only.  This removes the gene names
@@ -213,16 +202,18 @@ if __name__ == '__main__':
     cols = [0, 1, 2, 9, 10, 11, 18, 19, 20]
 
     # Sorted list of DE genes
-    df2 = pd.DataFrame.from_csv('O2vsO2Cr_deseq_expression_filtered.tsv', sep='\t', index_col='id')
+    df2 = pd.DataFrame.from_csv('AsIIIvsO2Cr_deseq_expression_filtered.tsv', sep='\t', index_col='id')
 
-    dfmap, coords = fc_gene_list(df1, df2, 6, cols, 'Chromate_Expression', -3)
+    gs = GeneScan()
+    genes = gs.getgenes(df2, 'O2AsIIIvsO2Cr_log2FoldChange', 'padj_O2AsIIIvsO2Cr')
+    dfmap = gs.filterrpkm(df1, genes, cols)
 
-    print len(coords['genes'])
-    # df1.ix[coords['genes'],['product']].to_csv('genes.txt', sep='\t')
-    print(df1.ix[coords['genes'],['product']])
+    print('{} genes survived.'.format(len(genes)))
+    print('The first 20 genes and their products:')
+    print(df1.ix[genes,['product']].head(20))
 
     # heatmap_dendro(dfmap, coords)
 
     hm = HeatMap(dfmap)
-    hm.heatmap_rpkm(dendro=True, labels=True)
+    hm.heatmap_rpkm(dendro=True, labels=False)
     plt.show()
