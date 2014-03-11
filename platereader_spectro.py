@@ -17,7 +17,7 @@ basedir = '/Users/saltikov/Documents/platereader_script/'
 big_line = [ ]
 
 outfile = basedir+'output.txt'
-infile = basedir+"Mauricio-1-22-2014-data.txt"
+infile = basedir+"DeltaRNAseq031014.txt"
 
 fileout = open(outfile, "w")
 
