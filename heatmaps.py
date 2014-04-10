@@ -9,9 +9,21 @@ import numpy as np
 import scipy.cluster.hierarchy as sch
 import scipy.spatial.distance as dist
 from collections import defaultdict
+import os
 
 
-class  HeatMap:
+class Chdir(object):
+    """ Temporarily changes the working directory"""
+    def __init__(self, newPath):
+        self.savedPath = os.getcwd()
+        self.newPath = newPath
+    def __enter__(self):
+        """Use a with Chdir as statement"""
+        os.chdir(self.newPath)
+    def __exit__(self, etype, value, traceback):
+        os.chdir(self.savedPath)
+
+class HeatMap:
     def __init__(self, matrix):
         """ Generates a heat map using RPKM or other expression values
 
@@ -21,85 +33,95 @@ class  HeatMap:
         self.matrix = matrix
 
     def simpleheatmap(self):
-        fig = plt.figure(figsize=(10,6.5))
-        rect1 = [0.1, 0.1, 0.3, 0.8]
-        rect2 = [0.6, 0.1, 0.3, 0.8]
+        """Make a simple heatmap without labels and dendograms
+
+        :return: get back the figure element
+        """
+        D = self.matrix
+        D = D.replace(0, 1)
+        fig = plt.figure(figsize=(6, 6.5))
+        rect1 = [0.2, 0.1, 0.8, 0.8]
         ax1 = fig.add_axes(rect1)
-        hm1 = ax1.matshow(self.matrix, aspect='auto', origin='lower')
-        ax2 = fig.add_axes(rect2)
-        D = self.matrix.values
-        y = D.shape[0]
-        z = np.transpose(y)
-        hm2 = ax2.pcolormesh(D, y, z)
-        return hm1, hm2
+        normal = mpl.colors.LogNorm(vmin=min(D.min()), vmax=max(D.max()))
+        hm1 = ax1.matshow(D, cmap=plt.cm.jet, norm=normal, aspect='auto', origin='lower')
+        ax1.set_yticks(np.arange(D.shape[0]))
+        ax1.set_yticklabels([])
+        ax1.set_xticks(np.arange(D.columns.shape[0]))
+        ax1.set_xticklabels([])
+        plt.colorbar(hm1, shrink=.4, pad=.1, aspect=10)
+        return hm1
 
     def heatmap_rpkm(self, labels=False, dendro=False):
-        """
-        :
+        """Make a heatmap with RPKM values.  Data should be in a pandas dataframe
 
         :param labels:
         :param dendro:
         :return:
+
         """
-        fig = plt.figure(figsize=(8, 8))
+        ###**** Set up the figure ****###
+        fig = plt.figure(num=1, figsize=(8, 10), dpi=72)
         fig.canvas.set_window_title('HeatMap_RPKM')
         D = self.matrix
+        # data points of 0 cannot be plotted via log scale, convert 0 to 1
         D = D.replace(0, 1)
 
-        # make the side dendrogram
+        ###**** make the side dendrogram ****###
         d1 = dist.pdist(D)
         D1 = dist.squareform(d1)
-        rect1 = [0.52, 0.2, 0.1, 0.65]
+        rect1 = [0.72, 0.2, 0.1, 0.65]
         ax1 = fig.add_axes(rect1)
         Y1 = sch.linkage(D1, method='single', metric='braycurtis')
         Z1 = sch.dendrogram(Y1, orientation='left')
         ax1.set_xticklabels([])
         ax1.set_yticklabels([])
-        ind1 = sch.fcluster(Y1, 0.5*max(Y1[:,2]), 'distance')
+        ind1 = sch.fcluster(Y1, 0.5 * max(Y1[:, 2]), 'distance')
         idx1 = Z1['leaves']
-        D = D.iloc[idx1,:]
+        D = D.iloc[idx1, :]
         ind1 = ind1[idx1]
 
-        # make top dendrogram
+        ###***** make top dendrogram *****####
         d2 = dist.pdist(D.transpose())
         D2 = dist.squareform(d2)
-        rect2 = [0.1, 0.86, 0.4, 0.1]
+        rect2 = [0.3, 0.86, 0.4, 0.1]
         ax2 = fig.add_axes(rect2)
-        ax2.set_title('Heatmap analysis of RPKM for RUN1 RNA Seq Exp', fontsize='small')
+        ax2.set_title('Heatmap analysis of RPKM for RUN1 RNA Seq Exp')
         Y2 = sch.linkage(D2, method='single', metric='braycurtis')
         Z2 = sch.dendrogram(Y2, orientation='top')
         ax2.set_xticklabels([])
         ax2.set_yticklabels([])
-        ind2 = sch.fcluster(Y2, 0.7*max(Y2[:,2]), 'distance')
+        ind2 = sch.fcluster(Y2, 0.7 * max(Y2[:, 2]), 'distance')
         idx2 = Z2['leaves']
-        D = D.iloc[:,idx2]
+        D = D.iloc[:, idx2]
         ind2 = ind2[idx2]
 
-        # make the heatmap
-        rect3 = [0.1, 0.2, 0.4, 0.65]
+        #### make the heatmap using matshow ####
+        rect3 = [0.3, 0.2, 0.4, 0.65]
         ax3 = fig.add_axes(rect3)
         normal = mpl.colors.LogNorm(vmin=min(D.min()), vmax=max(D.max()))
+        # I tested using pcolor and pcolormesh would work but you will need to strip the index out
+        # matshow seems to work the best
         hm = ax3.matshow(D, cmap=plt.cm.jet, norm=normal, aspect='auto')
-        ax3.set_yticklabels([])
-        ax3.set_yticks([])
+        ax3.yaxis.set_ticks([])
+        ax3.yaxis.set_ticklabels([])
         if labels:
-            ax3.set_yticklabels(D.index, minor=False, fontsize='x-small')
-            ax3.set_yticks(np.arange(D.shape[0]))
+            ax3.yaxis.set_ticks(np.arange(D.shape[0]))
+            ax3.yaxis.set_ticklabels(D.index, minor=False, fontsize=7)
         ax3.xaxis.tick_bottom()
-        ax3.xaxis.set_ticklabels(D.columns, rotation=90, minor=False, fontsize='x-small')
         ax3.xaxis.set_ticks(np.arange(D.columns.shape[0]))
+        ax3.xaxis.set_ticklabels(D.columns, rotation=90, minor=False, fontsize=12)
 
-        # make colorbar scale
-        rect4 = [0.65, 0.3, 0.02, 0.4]
-        ax4 =  fig.add_axes(rect4)
+        ###**** make colorbar scale ****###
+        rect4 = [0.88, 0.3, 0.02, 0.4]
+        ax4 = fig.add_axes(rect4)
         cb = plt.colorbar(hm, cax=ax4)
-        ax4.set_title('RPKM', fontsize='x-small')
+        ax4.set_title('RPKM', fontsize='small')
 
-        # make verticle colorbar for heatmap
-        rect5 = [0.505, 0.2, 0.01, 0.65]
+        ###**** make verticle colorbar for heatmap ****###
+        rect5 = [0.705, 0.2, 0.01, 0.65]
         ax5 = fig.add_axes(rect5)
         dr = np.array(ind1, dtype=int)
-        dr.shape = (len(ind1),1)
+        dr.shape = (len(ind1), 1)
         cmap = mpl.colors.ListedColormap(['r', 'g', 'b', 'y', 'w', 'k', 'm'])
         ax5.matshow(dr, aspect='auto', origin='lower', cmap=cmap)
         ax5.set_xticks([])
@@ -108,6 +130,11 @@ class  HeatMap:
         return ax1, ax2, ax3, ax4, ax5
 
     def heatmap_fc(self, labels=False, dendro=False):
+        """Make heatmap with log2fold change... function not ready yet
+
+        :param labels:
+        :param dendro:
+        """
         fig = plt.figure(figsize=(7, 9))
         D = self.matrix.values
         if dendro:
@@ -156,11 +183,13 @@ class  HeatMap:
         plt.colorbar(im, cax=axcolor)
         axcolor.set_title('FC')
 
-class  GeneScan:
+
+class GeneScan:
     def __init__(self):
-        self._genes = [ ]
+        self._genes = []
+
     def filtergenes(self, df, log2fc_col, pval, logfc):
-        """Main function for filtering a DESeq table for differentially expressed genes
+        """Main function for filtering a DESeq table for differentially expressed genes up and down regulated
 
         :param df: pandas dataframe of the DESeq data
         :param log2fc_col: particular column of the log2 foldchange
@@ -172,6 +201,7 @@ class  GeneScan:
             if "Shewana3_R" in key:
                 continue
             self._genes.append(key)
+
     def getgenes(self, df, log2fc_col, pval, log2fc=1):
         """Get a filtered list of genes from DESeq data
 
@@ -190,6 +220,54 @@ class  GeneScan:
         """
         self.filtergenes(df, log2fc_col, pval, log2fc)
         return self._genes
+
+    def filterrpkm(self, df, genes, rpkm):
+        """Get rpkm values for a list of genes from a panadas dataframe
+
+        :param df: pandas dataframe with rpkm values
+        :param genes: list of genes in df to search for
+        :param rpkm: columns containing the rpkm values
+        :return: a new dataframe of only the rpkm for the genes of interest
+        """
+        return df.ix[genes, rpkm]
+
+
+class GeneScanNopval:
+    def __init__(self):
+        self._genes = []
+
+    def filtergenes(self, df, log2fc_col, logfc):
+        """Main function for filtering a DESeq table for differentially expressed genes
+
+        :param df: pandas dataframe of the DESeq data
+        :param log2fc_col: particular column of the log2 foldchange
+        :param logfc: the criteria for filtering DE genes, e.g. 1 is 2 fold different
+
+        """
+        for key, item in df[(df[log2fc_col] >= logfc) | (df[log2fc_col] <= -logfc)].iterrows():
+            if "Shewana3_R" in key:
+                continue
+            self._genes.append(key)
+
+    def getgenes(self, df, log2fc_col, log2fc=1):
+        """Get a filtered list of genes from DESeq data
+
+        :param df: pandas dataframe of the DESeq file
+        :param log2fc_col: column in df that has the log2fc value
+        :param pval: specifiy the pval, 0.05 is the default
+        :param log2fc: specify the log2fc cutoff
+        :return: list of genes
+        \n
+        =====Overview of the function=====\n
+            Data should be generated from DESeq although another RNA seq type program might work.\n
+        The data should be converted into a pandas dataframe indexed with the gene names.  In this\n
+        case the column with the gene locus tags... e.g. Shewana3_1409.  The @log2fc_col string is \n
+        the column from @df that contains the DESeq data.\n
+
+        """
+        self.filtergenes(df, log2fc_col, log2fc)
+        return self._genes
+
     def filterrpkm(self, df, genes, rpkm):
         """Get rpkm values for a list of genes from a panadas dataframe
 
@@ -203,20 +281,20 @@ class  GeneScan:
 
 if __name__ == '__main__':
     basedir = '/Users/saltikov/PycharmProjects/rna_seq/run2/'
-
-    # The main file with RPKM values
-    df1 = pd.read_excel(basedir+'RUN2_data.xlsx', 'sheet1', index_col=0)
+    with Chdir(basedir) as cd1:
+        # The main file with RPKM values
+        df1 = pd.read_excel('RUN2_data.xlsx', 'sheet1', index_col=0)
 
     # columns with the specific RPKM values
     cols = [0, 1, 2, 9, 10, 11, 18, 19, 20]
 
     # Sorted list of DE genes from Maverixs using DESeq
-    DEfiles = { 'AsCr' : [ basedir+'AsIIIvsO2Cr_deseq_expression_filtered.tsv',
-                           'O2AsIIIvsO2Cr_log2FoldChange', 'padj_O2AsIIIvsO2Cr'],
-                'O2Cr' : [ basedir+'O2vsO2Cr_deseq_expression_filtered.tsv',
-                           'OxygenvsO2Cr_log2FoldChange','padj_OxygenvsO2Cr'],
-                'O2As' : [ basedir+'O2vsO2AsIII_deseq_expression_filtered.tsv',
-                           'OxygenvsO2AsIII_log2FoldChange','padj_OxygenvsO2AsIII']}
+    DEfiles = {'AsCr': ['AsIIIvsO2Cr_deseq_expression_filtered.tsv',
+                        'O2AsIIIvsO2Cr_log2FoldChange', 'padj_O2AsIIIvsO2Cr'],
+               'O2Cr': ['O2vsO2Cr_deseq_expression_filtered.tsv',
+                        'OxygenvsO2Cr_log2FoldChange', 'padj_OxygenvsO2Cr'],
+               'O2As': ['O2vsO2AsIII_deseq_expression_filtered.tsv',
+                        'OxygenvsO2AsIII_log2FoldChange', 'padj_OxygenvsO2AsIII']}
     # Start to get list of DE genes
     gs = GeneScan()
 
@@ -230,28 +308,29 @@ if __name__ == '__main__':
     # 1 would be a 2-fold change
     log2FC = 3
 
-    # Go through each DESeq file in the DEfiles dict and get the DE genes
-    for condition, items in DEfiles.iteritems():
-        df2 = pd.DataFrame.from_csv(items[0], sep='\t', index_col='id')
-        found = (gs.getgenes(df2, items[1], items[2], log2FC))
-        print('Found {} genes in {}'.format(len(found), condition))
-        for item in found:
-            table[item] +=1
-    for gene in table.iterkeys():
-        genes.append(gene)
+    with Chdir(basedir) as cd1:
+        # Go through each DESeq file in the DEfiles dict and get the DE genes
+        for condition, items in DEfiles.iteritems():
+            df2 = pd.DataFrame.from_csv(items[0], sep='\t', index_col='id')
+            found = (gs.getgenes(df2, items[1], items[2], log2FC))
+            print('Found {} genes in {}'.format(len(found), condition))
+            for item in found:
+                table[item] += 1
+        for gene in table.iterkeys():
+            genes.append(gene)
 
     print('There are {} genes remaining'.format(len(genes)))
 
     # Get RPKM values for only the DE genes
     dfmap = gs.filterrpkm(df1, genes, cols)
-    print(df1.ix[genes,['product']].head(20))
-    df1.ix[genes,['product']]  #.to_clipboard()
+    print(df1.ix[genes, ['product']].head(30))
+    df1.ix[genes, ['product']]  #.to_clipboard()
 
+    # call the HeatMap class
     hmap = HeatMap(dfmap)
-    hmap.heatmap_rpkm(labels=False)
+    hmap.heatmap_rpkm(labels=True)
 
     coords = dict(title='RUN2_DEHeatMaps', output=False)
-
     if coords['output']:
-        plt.savefig(basedir+coords['title'] + '.png', format='png', dpi=200, bbox_inches='tight')
+        plt.savefig(coords['title'] + '.png', format='png', dpi=144, bbox_inches='tight')
     plt.show()
